@@ -1,0 +1,6 @@
+menu "cmt"
+    config BR2_PACKAGE_CMT
+        bool "cmt"
+        help
+            Char mem test
+endmenu
