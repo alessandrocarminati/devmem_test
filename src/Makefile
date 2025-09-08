@@ -1,4 +1,9 @@
-cmt: cmt
-	$(CC) $(CFLAGS) cmt.c -o cmt
-#	$(CC) $(CFLAGS) writestr.c -o writestr
-#	$(CC) $(CFLAGS) w_and_r.c -o w_and_r
+
+cmt: cmt.c debug.o ram_map.o secret.o tests.o utils.o
+	$(CC) $(CFLAGS) -o cmt $^
+
+%.o: %.c
+	$(CC) -c $<
+
+clean:
+	rm -f cmt *.o
