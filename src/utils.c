@@ -1,4 +1,5 @@
 #define _FILE_OFFSET_BITS 64
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -11,6 +12,109 @@
 
 #include "utils.h"
 #include "debug.h"
+
+
+/*
+	copies test context srcbuf to dstbuf by following srcbuf in physical memory
+	and read its contents in dstbuf
+	returns -1 on error
+		 0 on successfully transfer with no contiguos page detected in physical memory
+		 size of srcbuf on success with contiguous pages.
+ */
+int copy_fragmented_physical_memory(struct test_context *t) {
+	uintptr_t current_virt_addr = (uintptr_t)t->srcbuf;
+	uintptr_t current_dest_addr = (uintptr_t)t->dstbuf;
+	size_t bytes_to_copy = sizeof(t->srcbuf);
+	size_t page_size = (uint64_t)sysconf(_SC_PAGE_SIZE);
+	uint64_t phys_addr = 0, prev_phys_addr = 0;
+	uintptr_t page_offset;
+	size_t chunk_size;
+	bool contiguos_detect = false;
+
+	while (bytes_to_copy > 0) {
+		prev_phys_addr = phys_addr;
+		phys_addr = virt_to_phys((void *)current_virt_addr);
+		if (phys_addr == 0) {
+			deb_printf("Error: Failed to get physical address for virtual address %p\n", (void *)current_virt_addr);
+			return -1;
+		}
+		if (prev_phys_addr + page_size == phys_addr)
+			contiguos_detect = true;
+
+		page_offset = current_virt_addr % page_size;
+
+		chunk_size = page_size - page_offset;
+		if (chunk_size > bytes_to_copy) {
+			chunk_size = bytes_to_copy;
+		}
+
+		if (lseek(t->fd, phys_addr, SEEK_SET) == (off_t)-1) {
+			perror("Failed to lseek in /dev/mem");
+			return -1;
+		}
+
+		if (read(t->fd, (void *)current_dest_addr, chunk_size) != chunk_size) {
+			perror("Failed to read from /dev/mem");
+			return -1;
+		}
+
+		current_virt_addr += chunk_size;
+		current_dest_addr += chunk_size;
+		bytes_to_copy -= chunk_size;
+	}
+	return contiguos_detect?sizeof(t->srcbuf):0;
+}
+
+static void hexdump(const void *data, size_t size, size_t offset) {
+	const unsigned char *p = (const unsigned char *)data;
+	size_t i, j;
+
+	for (i = 0; i < size; i += 16) {
+		printf("%08zx  ", offset + i);
+
+		for (j = 0; j < 16; j++) {
+			if (i + j < size) {
+				printf("%02x ", p[i + j]);
+			} else {
+				printf("   ");
+			}
+		}
+		printf(" ");
+
+		for (j = 0; j < 16; j++) {
+			if (i + j < size) {
+				printf("%c", isprint(p[i + j]) ? p[i + j] : '.');
+			}
+		}
+		printf("\n");
+	}
+}
+
+void compare_and_dump_buffers(const char *buf1, const char *buf2, size_t size) {
+	if (buf1 == NULL || buf2 == NULL) {
+		fprintf(stderr, "Error: One or both buffers are NULL.\n");
+		return;
+	}
+
+	size_t i;
+	int found_difference = 0;
+
+	for (i = 0; i < size; i += 16) {
+		if (memcmp(buf1 + i, buf2 + i, 16) != 0) {
+			found_difference = 1;
+			printf("Difference found at offset 0x%zx (decimal %zu).\n", i, i);
+			printf("--- Buffer 1 ---\n");
+			hexdump(buf1 + i, 16, i);
+			printf("--- Buffer 2 ---\n");
+			hexdump(buf2 + i, 16, i);
+			printf("\n");
+		}
+	}
+
+	if (!found_difference) {
+		printf("Buffers are identical.\n");
+	}
+}
 
 uint64_t virt_to_phys(void *virt_addr) {
 	uint64_t virt_pfn, page_size, phys_addr, pfn;

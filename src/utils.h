@@ -78,6 +78,9 @@ uint64_t virt_to_phys(void *);
 int fill_random_chars(char *, int);
 bool is_zero(const void *, size_t);
 void print_hex(const void *, size_t);
+int copy_fragmented_physical_memory(struct test_context *);
+void compare_and_dump_buffers(const char *, const char *, size_t);
+
 test_consistency test_needed(struct test_context *, struct char_mem_test *);
 #endif
 
