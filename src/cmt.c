@@ -18,7 +18,7 @@
 #define TEST_NUM 6
 
 struct char_mem_test test_set[] = {
-	{"test_devmem_access", &test_devmem_access, "Test whatever /dev/mem is accessible",					F_ARCH_ALL|F_BITS_ALL|F_MISC_FATAL|F_MISC_INIT_PRV},
+	{"test_devmem_access", &test_devmem_access, "Test whether /dev/mem is accessible",					F_ARCH_ALL|F_BITS_ALL|F_MISC_FATAL|F_MISC_INIT_PRV},
 	{"test_strict_devmem", &test_strict_devmem, "Test Strict Devmem enabled",						F_ARCH_ALL|F_BITS_ALL|F_MISC_STRICT_DEVMEM_PRV|F_MISC_DONT_CARE},
 	{"test_read_at_addr_32bit_ge", &test_read_at_addr_32bit_ge, "Test read 64bit ppos vs 32 bit addr",			F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ},
 	{"test_read_outside_linear_map", &test_read_outside_linear_map, "Test read outside linear map",				F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ },
