@@ -18,13 +18,14 @@
 #define TEST_NUM 6
 
 struct char_mem_test test_set[] = {
-	{"test_devmem_access", &test_devmem_access, "Test whatever /dev/mem is accessible",				F_ARCH_ALL|F_BITS_ALL|F_MISC_FATAL|F_MISC_INIT_PRV},
-	{"test_strict_devmem", &test_strict_devmem, "Test Strict Devmem enabled",					F_ARCH_ALL|F_BITS_ALL|F_MISC_STRICT_DEVMEM_PRV},
-	{"test_read_at_addr_32bit_ge", &test_read_at_addr_32bit_ge, "Test 64bit ppos vs 32 bit addr",			F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ},
-	{"test_read_outside_linear_map", &test_read_outside_linear_map, "Test Read outside linear map",			F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ },
-	{"test_read_secret_area", &test_read_secret_area, "Test that tests memfd_secret can not being accessed",	F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
-	{"test_read_allowed_area", &test_read_allowed_area, "test allowed area can be read",				F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
-//	{"", &fn, "", },
+	{"test_devmem_access", &test_devmem_access, "Test whatever /dev/mem is accessible",							F_ARCH_ALL|F_BITS_ALL|F_MISC_FATAL|F_MISC_INIT_PRV},
+	{"test_strict_devmem", &test_strict_devmem, "Test Strict Devmem enabled",								F_ARCH_ALL|F_BITS_ALL|F_MISC_STRICT_DEVMEM_PRV|F_MISC_DONT_CARE},
+	{"test_read_at_addr_32bit_ge", &test_read_at_addr_32bit_ge, "Test 64bit ppos vs 32 bit addr",						F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ},
+	{"test_read_outside_linear_map", &test_read_outside_linear_map, "Test Read outside linear map",						F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ },
+	{"test_read_secret_area", &test_read_secret_area, "Test that tests memfd_secret can not being accessed",				F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_read_allowed_area", &test_read_allowed_area, "test allowed area can be read",							F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_read_allowed_area_ppos_advance", &test_read_allowed_area_ppos_advance, "test allowed area can be read and ppos increments",	F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_read_restricted_area", &test_read_restricted_area, "test restricted returns zeros",						F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ|F_MISC_STRICT_DEVMEM_REQ},
 };
 
 int main(int argc, char *argv[]) {
@@ -66,16 +67,22 @@ int main(int argc, char *argv[]) {
 			tmp_res = current->fn(&t);
 			switch (tmp_res) {
 			case FAIL:
-				tests_failed++;
-				str_res = KO_STR;
+				str_res = DC_STR;
+				if (!(current->flags & F_MISC_DONT_CARE)) {
+					str_res = KO_STR;
+					tests_failed++;
+				}
 				break;
 			case SKIPPED:
 				tests_skipped++;
 				str_res = SKP_STR;
 				break;
 			case PASS:
-				tests_passed++;
-				str_res = OK_STR;
+				str_res = DC_STR;
+				if (!(current->flags & F_MISC_DONT_CARE)) {
+					tests_passed++;
+					str_res = OK_STR;
+				}
 				break;
 			default:
 				tests_failed++;

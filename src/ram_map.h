@@ -4,6 +4,7 @@
 #define _GNU_SOURCE
 #define SAFE_OFFSET (512ULL * 1024ULL)
 #define LOW_MEM_LIMIT 0x100000ULL
+#define LEGACY_MEM_START 0x10000
 
 struct ram_region {
 	uint64_t start;
@@ -22,6 +23,6 @@ uint64_t find_last_linear_byte(int, uint64_t, uint64_t);
 void dump_ram_map(const struct ram_map *);
 void report_physical_memory(const struct ram_map *);
 uint64_t find_high_system_ram_addr(const struct ram_map *);
-uint64_t pick_reserved_address(const struct ram_map *);
+uint64_t pick_restricted_address(const struct ram_map *);
 
 #endif

@@ -132,10 +132,19 @@ int test_read_secret_area(struct test_context *t) {
 	return FAIL;
 }
 
-int test_read_reserved_area(struct test_context *t) {
-	if (t->tst_addr = pick_reserved_address(t->map)) {
-		if (try_read_dev_mem(t->fd, t->tst_addr, 0, NULL) < 0)
-			return PASS;
+int test_read_restricted_area(struct test_context *t) {
+	fill_random_chars(t->dstbuf, sizeof(t->dstbuf));
+	if (t->verbose)
+		print_hex(t->dstbuf, sizeof(t->dstbuf));
+	if (t->tst_addr = pick_restricted_address(t->map)) {
+		if (try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf), t->dstbuf) >= 0) {
+			if (t->verbose)
+				 print_hex(t->dstbuf, sizeof(t->dstbuf));
+
+			if (is_zero(t->dstbuf, sizeof(t->dstbuf))) {
+				return PASS;
+			}
+		}
 	}
 	return FAIL;
 }
@@ -145,6 +154,19 @@ int test_read_allowed_area(struct test_context *t) {
 	if (t->tst_addr = virt_to_phys(t->srcbuf)) {
 		if (try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf), t->dstbuf) >= 0) {
 			if (!memcmp(t->srcbuf, t->dstbuf, sizeof(t->srcbuf))) {
+				return PASS;
+			}
+		}
+	}
+	return FAIL;
+}
+
+int test_read_allowed_area_ppos_advance(struct test_context *t) {
+	fill_random_chars(t->srcbuf, sizeof(t->srcbuf));
+	if (t->tst_addr = virt_to_phys(t->srcbuf)) {
+		if ((try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf)/2, t->dstbuf) >= 0) &&
+		    (try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf)/2, t->dstbuf) >= 0)){
+			if (!memcmp(t->srcbuf+sizeof(t->dstbuf)/2, t->dstbuf, sizeof(t->srcbuf)/2)) {
 				return PASS;
 			}
 		}

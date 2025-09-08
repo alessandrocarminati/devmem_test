@@ -168,12 +168,12 @@ uint64_t find_high_system_ram_addr(const struct ram_map *map) {
 	return 0;
 }
 
-uint64_t pick_reserved_address(const struct ram_map *map) {
+uint64_t pick_restricted_address(const struct ram_map *map) {
 	if (!map || !map->regions || map->count == 0)
 		return 0;
 
 	for (size_t i = 0; i < map->count; i++) {
-		if (!strcmp("Reserved", map->regions[i].name)) {
+		if ((!strcmp("System RAM", map->regions[i].name)) && (map->regions[i].start < LEGACY_MEM_START)) {
 			uint64_t start = map->regions[i].start;
 			uint64_t end   = map->regions[i].end;
 

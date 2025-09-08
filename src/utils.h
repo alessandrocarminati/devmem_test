@@ -22,8 +22,8 @@
 #define F_MISC_STRICT_DEVMEM_PRV	(1 << 12)
 #define F_MISC_INIT_PRV			(1 << 13)
 #define F_MISC_INIT_REQ			(1 << 14)
+#define F_MISC_DONT_CARE		(1 << 15)
 /*
-#define F_MISC_				(1 << 14)
 #define F_MISC_				(1 << 15)
 #define F_MISC_				(1 << 16)
 #define F_MISC_				(1 << 17)
