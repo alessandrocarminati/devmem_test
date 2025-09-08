@@ -64,6 +64,43 @@ int test_read_outside_linear_map(struct test_context *t) {
 	}
 }
 
+int test_write_outside_linear_map(struct test_context *t) {
+	if (sizeof(void*) == 8) {
+		deb_printf("[test_write_outside_linear_map] Skipped: 64-bit architecture\n");
+		return SKIPPED;
+	}
+
+	if (!t->map || t->map->count == 0) {
+		deb_printf("No memory map provided!\n");
+		return SKIPPED;
+	}
+
+	uint64_t start_addr = t->map->regions[0].start;
+	uint64_t max_addr = t->map->regions[t->map->count - 1].end;
+
+	deb_printf("[test_write_outside_linear_map] Scanning between 0x%llx and 0x%llx\n",
+		   (unsigned long long)start_addr, (unsigned long long)max_addr);
+
+	uint64_t last_linear = find_last_linear_byte(t->fd, start_addr, max_addr);
+
+	deb_printf("Last readable linear address: 0x%llx\n",
+		   (unsigned long long)last_linear);
+
+	uint64_t tolerance = 16 * 1024 * 1024;
+	if (last_linear + 1 >= EXPECTED_LINEAR_LIMIT - tolerance &&
+		last_linear + 1 <= EXPECTED_LINEAR_LIMIT + tolerance) {
+		deb_printf("PASS: Linear map ends near 1 GiB boundary.\n");
+		fill_random_chars(t->srcbuf, sizeof(t->srcbuf));
+		if (try_write_dev_mem(t->fd, last_linear + 0x1000, sizeof(t->srcbuf), t->srcbuf) < 0) {
+			return FAIL;
+		}
+		return PASS;
+	} else {
+		deb_printf("FAIL: Linear map ends unexpectedly (expected ~890MB).\n");
+		return FAIL;
+	}
+}
+
 int test_strict_devmem(struct test_context *t) {
 	int res = FAIL;
 	uint64_t addr;
