@@ -22,14 +22,18 @@
 		 size of srcbuf on success with contiguous pages.
  */
 int copy_fragmented_physical_memory(struct test_context *t) {
-	uintptr_t current_virt_addr = (uintptr_t)t->srcbuf;
-	uintptr_t current_dest_addr = (uintptr_t)t->dstbuf;
-	size_t bytes_to_copy = sizeof(t->srcbuf);
-	size_t page_size = (uint64_t)sysconf(_SC_PAGE_SIZE);
-	uint64_t phys_addr = 0, prev_phys_addr = 0;
-	uintptr_t page_offset;
-	size_t chunk_size;
-	bool contiguos_detect = false;
+	uintptr_t current_virt_addr, current_dest_addr, page_offset;
+	size_t bytes_to_copy, page_size, chunk_size;
+	uint64_t phys_addr, prev_phys_addr;
+	bool contiguos_detect;
+
+	current_virt_addr = (uintptr_t)t->srcbuf;
+	current_dest_addr = (uintptr_t)t->dstbuf;
+	bytes_to_copy = sizeof(t->srcbuf);
+
+	page_size = (uint64_t)sysconf(_SC_PAGE_SIZE);
+	phys_addr = 0;
+	contiguos_detect = false;
 
 	while (bytes_to_copy > 0) {
 		prev_phys_addr = phys_addr;
