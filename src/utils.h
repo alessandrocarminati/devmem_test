@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define MAX_PAGE_SIZE 65536
 #define F_ARCH_ALL			1
 #define F_ARCH_X86			(1 << 1)
 #define F_ARCH_ARM			(1 << 2)
@@ -45,6 +46,7 @@
 #define F_MISC_				(1 << 31)
 */
 
+
 typedef enum {
 	TEST_DENIED,
 	TEST_INCOHERENT,
@@ -53,8 +55,8 @@ typedef enum {
 
 struct test_context {
 	struct ram_map 	*map;
-	char 		srcbuf[64];
-	char 		dstbuf[64];
+	char 		srcbuf[MAX_PAGE_SIZE*2];
+	char 		dstbuf[MAX_PAGE_SIZE*2];
 	uintptr_t	tst_addr;
 	int		fd;
 	bool		verbose;
