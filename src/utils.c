@@ -64,6 +64,20 @@ uint64_t virt_to_phys(void *virt_addr) {
 	return phys_addr;
 }
 
+
+int try_read_inplace(int fd, int scnt, void *sbuf) {
+	ssize_t r;
+
+	deb_printf("try_read_inplace(%d, %u, %p)\n", fd, scnt, sbuf);
+
+	r = read(fd, sbuf, scnt);
+	deb_printf("read(%d, %p, %d)=%d(%d)\n", fd, sbuf, scnt, r, -errno);
+	if (r < 0) {
+		return -errno;
+	}
+	return (int)r;
+}
+
 int try_read_dev_mem(int fd, uint64_t addr, int scnt, void *sbuf) {
 	int space;
 	ssize_t r;
@@ -80,7 +94,30 @@ int try_read_dev_mem(int fd, uint64_t addr, int scnt, void *sbuf) {
 	deb_printf("lseek(%d, %llx, SEEK_SET)=%d\n", fd, addr, -errno);
 
 	r = read(fd, buf, cnt);
-	deb_printf("read(%d, %p, %d)=%d(%d)\n", fd, buf, cnt, addr, r, -errno);
+	deb_printf("read(%d, %p, %d)=%d(%d)\n", fd, buf, cnt, r, -errno);
+	if (r < 0) {
+		return -errno;
+	}
+	return (int)r;
+}
+
+int try_write_dev_mem(int fd, uint64_t addr, int scnt, void *sbuf) {
+	int space;
+	ssize_t r;
+	void *buf;
+	int cnt;
+
+	deb_printf("try_write_dev_mem(%d, 0x%llx, %u, %p)\n", fd, addr, scnt, sbuf);
+	buf = sbuf?sbuf:&space;
+	cnt = sbuf?scnt:sizeof(space);
+	deb_printf("buf = %p, cnt = %d\n", buf, cnt);
+	if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1) {
+		return -errno;
+	}
+	deb_printf("lseek(%d, %llx, SEEK_SET)=%d\n", fd, addr, -errno);
+
+	r = write(fd, buf, cnt);
+	deb_printf("write(%d, %p, %d)=%d(%d)\n", fd, buf, cnt, r, -errno);
 	if (r < 0) {
 		return -errno;
 	}

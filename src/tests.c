@@ -163,9 +163,16 @@ int test_read_allowed_area(struct test_context *t) {
 
 int test_read_allowed_area_ppos_advance(struct test_context *t) {
 	fill_random_chars(t->srcbuf, sizeof(t->srcbuf));
+	memset(t->dstbuf, 0, sizeof(t->dstbuf));
+	if (t->verbose)
+		print_hex(t->srcbuf, sizeof(t->srcbuf));
 	if (t->tst_addr = virt_to_phys(t->srcbuf)) {
+		deb_printf("test_read_allowed_area_ppos_advance t->tst_addr=%llx\n", t->tst_addr);
 		if ((try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf)/2, t->dstbuf) >= 0) &&
-		    (try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf)/2, t->dstbuf) >= 0)){
+		    (try_read_inplace(t->fd, sizeof(t->dstbuf)/2, t->dstbuf) >= 0)){
+			if (t->verbose)
+				print_hex(t->dstbuf, sizeof(t->dstbuf));
+
 			if (!memcmp(t->srcbuf+sizeof(t->dstbuf)/2, t->dstbuf, sizeof(t->srcbuf)/2)) {
 				return PASS;
 			}
@@ -174,3 +181,11 @@ int test_read_allowed_area_ppos_advance(struct test_context *t) {
 	return FAIL;
 }
 
+int test_write_outside_area(struct test_context *t) {
+	fill_random_chars(t->srcbuf, sizeof(t->srcbuf));
+	t->tst_addr = pick_outside_address(t->map);
+	if (try_write_dev_mem(t->fd, t->tst_addr, sizeof(t->srcbuf), t->srcbuf) < 0) {
+		return PASS;
+	}
+        return FAIL;
+}

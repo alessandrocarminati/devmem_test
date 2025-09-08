@@ -185,3 +185,16 @@ uint64_t pick_restricted_address(const struct ram_map *map) {
 
 	return 0;
 }
+
+uint64_t pick_outside_address(const struct ram_map *map) {
+	uint64_t max_addr = 0;
+        if (!map || !map->regions || map->count == 0)
+                return 0;
+
+        for (size_t i = 0; i < map->count; i++) {
+                if (max_addr < map->regions[i].end)
+			max_addr = map->regions[i].end;
+        }
+
+        return max_addr + 0x1000;
+}

@@ -18,14 +18,15 @@
 #define TEST_NUM 6
 
 struct char_mem_test test_set[] = {
-	{"test_devmem_access", &test_devmem_access, "Test whatever /dev/mem is accessible",							F_ARCH_ALL|F_BITS_ALL|F_MISC_FATAL|F_MISC_INIT_PRV},
-	{"test_strict_devmem", &test_strict_devmem, "Test Strict Devmem enabled",								F_ARCH_ALL|F_BITS_ALL|F_MISC_STRICT_DEVMEM_PRV|F_MISC_DONT_CARE},
-	{"test_read_at_addr_32bit_ge", &test_read_at_addr_32bit_ge, "Test 64bit ppos vs 32 bit addr",						F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ},
-	{"test_read_outside_linear_map", &test_read_outside_linear_map, "Test Read outside linear map",						F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ },
-	{"test_read_secret_area", &test_read_secret_area, "Test that tests memfd_secret can not being accessed",				F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
-	{"test_read_allowed_area", &test_read_allowed_area, "test allowed area can be read",							F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
-	{"test_read_allowed_area_ppos_advance", &test_read_allowed_area_ppos_advance, "test allowed area can be read and ppos increments",	F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
-	{"test_read_restricted_area", &test_read_restricted_area, "test restricted returns zeros",						F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ|F_MISC_STRICT_DEVMEM_REQ},
+	{"test_devmem_access", &test_devmem_access, "Test whatever /dev/mem is accessible",					F_ARCH_ALL|F_BITS_ALL|F_MISC_FATAL|F_MISC_INIT_PRV},
+	{"test_strict_devmem", &test_strict_devmem, "Test Strict Devmem enabled",						F_ARCH_ALL|F_BITS_ALL|F_MISC_STRICT_DEVMEM_PRV|F_MISC_DONT_CARE},
+	{"test_read_at_addr_32bit_ge", &test_read_at_addr_32bit_ge, "Test read 64bit ppos vs 32 bit addr",			F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ},
+	{"test_read_outside_linear_map", &test_read_outside_linear_map, "Test read outside linear map",				F_ARCH_ALL|F_BITS_B32|F_MISC_INIT_REQ },
+	{"test_read_secret_area", &test_read_secret_area, "Test read memfd_secret area can not being accessed",			F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_read_allowed_area", &test_read_allowed_area, "test read allowed area",						F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_read_allowed_area_ppos_advance", &test_read_allowed_area_ppos_advance, "test read allowed area increments ppos",	F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_read_restricted_area", &test_read_restricted_area, "test read restricted returns zeros",				F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ|F_MISC_STRICT_DEVMEM_REQ},
+	{"test_write_outside_area", &test_write_outside_area, "test write outside ",						F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ|F_MISC_WARN_ON_FAILURE},
 };
 
 int main(int argc, char *argv[]) {
@@ -34,7 +35,7 @@ int main(int argc, char *argv[]) {
 	int tests_passed = 0;
 	int i, tmp_res;
 	struct test_context t = {0};
-	char *str_res;
+	char *str_res, *str_warn;
 	struct char_mem_test *current;
 
 	// seet verbose flag from cmdline
@@ -53,6 +54,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	for (i=0; i < sizeof(test_set)/sizeof(test_set[0]); i++) {
+		str_warn = NO_WARN_STR;
 		current = test_set +i;
 		tmp_res = test_needed(&t, current);
 		switch (tmp_res) {
@@ -76,6 +78,8 @@ int main(int argc, char *argv[]) {
 			case SKIPPED:
 				tests_skipped++;
 				str_res = SKP_STR;
+				if (current->flags & F_MISC_WARN_ON_FAILURE)
+					str_warn = WARN_STR;
 				break;
 			case PASS:
 				str_res = DC_STR;
@@ -83,13 +87,15 @@ int main(int argc, char *argv[]) {
 					tests_passed++;
 					str_res = OK_STR;
 				}
+				if (current->flags & F_MISC_WARN_ON_SUCCESS)
+					str_warn = WARN_STR;
 				break;
 			default:
 				tests_failed++;
 				// this should not happend:
 				// TODO: exit
 			}
-			printf("%s\n", str_res);
+			printf("%s %s\n", str_res, str_warn);
 			if ((tmp_res == FAIL) && (current->flags & F_MISC_FATAL)) {
 				printf("fatal test failed end the chain\n");
 				goto cleanup;

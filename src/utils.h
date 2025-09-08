@@ -23,6 +23,8 @@
 #define F_MISC_INIT_PRV			(1 << 13)
 #define F_MISC_INIT_REQ			(1 << 14)
 #define F_MISC_DONT_CARE		(1 << 15)
+#define F_MISC_WARN_ON_SUCCESS		(1 << 16)
+#define F_MISC_WARN_ON_FAILURE		(1 << 17)
 /*
 #define F_MISC_				(1 << 15)
 #define F_MISC_				(1 << 16)
@@ -68,6 +70,8 @@ struct char_mem_test {
 };
 
 int try_read_dev_mem(int, uint64_t, int, void *);
+int try_write_dev_mem(int, uint64_t, int, void *);
+int try_read_inplace(int, int, void *);
 uint64_t virt_to_phys(void *);
 int fill_random_chars(char *, int);
 bool is_zero(const void *, size_t);

@@ -24,5 +24,6 @@ void dump_ram_map(const struct ram_map *);
 void report_physical_memory(const struct ram_map *);
 uint64_t find_high_system_ram_addr(const struct ram_map *);
 uint64_t pick_restricted_address(const struct ram_map *);
+uint64_t pick_outside_address(const struct ram_map *);
 
 #endif
