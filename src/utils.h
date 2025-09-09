@@ -5,8 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define FRAG_TOTAL_PAGES   256    // total pages used to fragment allocator
-#define FRAG_BLOCK_PAGES   4      // small blocks per fragment step
+#define BOUNCE_BUF_SIZE			64
 //#define MAX_PAGE_SIZE 65536
 #define F_ARCH_ALL			1
 #define F_ARCH_X86			(1 << 1)
@@ -64,7 +63,6 @@ struct test_context {
 	bool		verbose;
 	bool		strict_devmem_state;
 	bool		devmem_init_state;
-	size_t		buffsize;
 };
 
 struct char_mem_test {
@@ -81,12 +79,9 @@ uint64_t virt_to_phys(void *);
 int fill_random_chars(char *, int);
 bool is_zero(const void *, size_t);
 void print_hex(const void *, size_t);
-int copy_fragmented_physical_memory(struct test_context *);
-void compare_and_dump_buffers(const char *, const char *, size_t);
-void *find_contiguous_pair(void *, size_t);
-void dealloc(void *, size_t);
-void *find_contiguous_zone(size_t size, int max_iterations);
-
 test_consistency test_needed(struct test_context *, struct char_mem_test *);
+void *malloc_pb(size_t);
+void free_pb(void *);
+
 #endif
 

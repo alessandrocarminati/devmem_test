@@ -37,41 +37,35 @@ int main(int argc, char *argv[]) {
 	int tests_failed = 0;
 	int tests_passed = 0;
 	int i, tmp_res;
-	struct test_context *t;
+	struct test_context t;
 	char *str_res, *str_warn;
 	struct char_mem_test *current;
 
-	t = (struct test_context *) calloc(1, sizeof(struct test_context));
-	t->srcbuf = find_contiguous_zone(4096*16, 4096);
-	t->dstbuf = find_contiguous_zone(4096*16, 4096);
-	if (!t->srcbuf || !t->dstbuf) {
+	t.srcbuf = malloc_pb(BOUNCE_BUF_SIZE);
+	t.dstbuf = malloc_pb(BOUNCE_BUF_SIZE);
+	if (!t.srcbuf || !t.dstbuf) {
 		printf("can't allocate buffers!\n");
 		exit(-1);
 	}
-	t->buffsize = 4096*16;
-	if (!t) {
-		perror("alloc\n");
-		exit(-1);
-	}
 	// seet verbose flag from cmdline
-	t->verbose = false;
+	t.verbose = false;
 	if ((argc >= 2) && (!strcmp(argv[1], "-v"))) {
-		t->verbose = true;
+		t.verbose = true;
 		pdebug=1;
 	}
 
-	t->map = parse_iomem();
-	if (!t->map) goto exit;
+	t.map = parse_iomem();
+	if (!t.map) goto exit;
 
-	if (t->verbose) {
-		report_physical_memory(t->map);
-		dump_ram_map(t->map);
+	if (t.verbose) {
+		report_physical_memory(t.map);
+		dump_ram_map(t.map);
 	}
 
 	for (i=0; i < sizeof(test_set)/sizeof(test_set[0]); i++) {
 		str_warn = NO_WARN_STR;
 		current = test_set +i;
-		tmp_res = test_needed(t, current);
+		tmp_res = test_needed(&t, current);
 		switch (tmp_res) {
 		case TEST_INCOHERENT:
 			deb_printf("Incoherent sequence Detected\n");
@@ -81,7 +75,7 @@ int main(int argc, char *argv[]) {
 			deb_printf("allowed sequence Detected\n");
 			str_res = "";
 			printf("%s - (%s) ", current->name, current->descr);
-			tmp_res = current->fn(t);
+			tmp_res = current->fn(&t);
 			switch (tmp_res) {
 			case FAIL:
 				str_res = DC_STR;
@@ -121,8 +115,10 @@ int main(int argc, char *argv[]) {
 	}
 
 cleanup:
-	close(t->fd);
-	free_ram_map(t->map);
+	close(t.fd);
+	free_ram_map(t.map);
+	free_pb(t.srcbuf);
+	free_pb(t.dstbuf);
 exit:
 	printf("Run tests = %d (passed=%d, skipped=%d failed=%d)\n", tests_skipped+tests_failed+tests_passed, tests_passed, tests_skipped, tests_failed);
 	return tests_skipped+tests_failed;

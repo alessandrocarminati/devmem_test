@@ -13,8 +13,6 @@
 #define DC_STR "[\e[1;33mDON'T CARE\e[0m]"
 #define WARN_STR "\e[1;31mThis shouldn't have happen. Memory is probably corrupted!\e[0m"
 #define NO_WARN_STR ""
-#define SINGLE_PAGE_BUF_SIZE 512
-#define SMALL_BYTES_CNT 8
 
 int test_read_at_addr_32bit_ge(struct test_context *);
 int test_read_outside_linear_map(struct test_context *);

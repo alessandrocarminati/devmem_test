@@ -90,8 +90,8 @@ int test_write_outside_linear_map(struct test_context *t) {
 	if (last_linear + 1 >= EXPECTED_LINEAR_LIMIT - tolerance &&
 		last_linear + 1 <= EXPECTED_LINEAR_LIMIT + tolerance) {
 		deb_printf("PASS: Linear map ends near 1 GiB boundary.\n");
-		fill_random_chars(t->srcbuf, t->buffsize);
-		if (try_write_dev_mem(t->fd, last_linear + 0x1000, SMALL_BYTES_CNT, t->srcbuf) < 0) {
+		fill_random_chars(t->srcbuf, BOUNCE_BUF_SIZE);
+		if (try_write_dev_mem(t->fd, last_linear + 0x1000, BOUNCE_BUF_SIZE, t->srcbuf) < 0) {
 			return FAIL;
 		}
 		return PASS;
@@ -152,17 +152,17 @@ int test_devmem_access(struct test_context *t) {
 int test_read_secret_area(struct test_context *t) {
 	void *tmp_ptr;
 	deb_printf("\ntest_read_secret_area - start\n", tmp_ptr);
-	tmp_ptr = secret_alloc(t->buffsize);
+	tmp_ptr = secret_alloc(BOUNCE_BUF_SIZE);
 	
 	if (tmp_ptr) {
 		deb_printf("secret_alloc [ok] tmp_ptr va addr = 0x%lx\n", tmp_ptr);
-		fill_random_chars(tmp_ptr, t->buffsize); // lazy alloc, need to fill with something
+		fill_random_chars(tmp_ptr, BOUNCE_BUF_SIZE); // lazy alloc, need to fill with something
 		if (t->verbose)
 			print_hex(tmp_ptr, 32);
 		t->tst_addr = virt_to_phys(tmp_ptr);
 		if (t->tst_addr) {
 			deb_printf("filled with things -> tst_addr phy addr = 0x%lx\n", t->tst_addr);
-			if (try_read_dev_mem(t->fd, t->tst_addr, t->buffsize, t->dstbuf) < 0)
+			if (try_read_dev_mem(t->fd, t->tst_addr, BOUNCE_BUF_SIZE, t->dstbuf) < 0)
 				return PASS;
 		}
 	}
@@ -170,15 +170,15 @@ int test_read_secret_area(struct test_context *t) {
 }
 
 int test_read_restricted_area(struct test_context *t) {
-	fill_random_chars(t->dstbuf, t->buffsize);
+	fill_random_chars(t->dstbuf, BOUNCE_BUF_SIZE);
 	if (t->verbose)
 		print_hex(t->dstbuf, 32);
 	if (t->tst_addr = pick_restricted_address(t->map)) {
-		if (copy_fragmented_physical_memory(t) > 0) { // try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf), t->dstbuf) >= 0) {
+		if (try_read_dev_mem(t->fd, t->tst_addr, BOUNCE_BUF_SIZE, t->dstbuf) >= 0) {
 			if (t->verbose)
 				 print_hex(t->dstbuf, 32);
 
-			if (is_zero(t->dstbuf, t->buffsize)) {
+			if (is_zero(t->dstbuf, BOUNCE_BUF_SIZE)) {
 				return PASS;
 			}
 		}
@@ -187,16 +187,16 @@ int test_read_restricted_area(struct test_context *t) {
 }
 
 int test_read_allowed_area(struct test_context *t) {
-	fill_random_chars(t->srcbuf, t->buffsize);
+	fill_random_chars(t->srcbuf, BOUNCE_BUF_SIZE);
 	if (t->tst_addr = virt_to_phys(t->srcbuf)) {
-		if (copy_fragmented_physical_memory(t) > 0) { //try_read_dev_mem(t->fd, t->tst_addr, sizeof(t->dstbuf), t->dstbuf) >= 0) {
+		if (try_read_dev_mem(t->fd, t->tst_addr, BOUNCE_BUF_SIZE, t->dstbuf) >= 0) {
 			deb_printf("Read OK  compare twos\n", t->tst_addr);
 			if (t->verbose) {
-				print_hex(t->srcbuf, 32);
-				print_hex(t->dstbuf, 32);
-				compare_and_dump_buffers(t->srcbuf, t->dstbuf, t->buffsize);
+				print_hex(t->srcbuf, BOUNCE_BUF_SIZE);
+				print_hex(t->dstbuf, BOUNCE_BUF_SIZE);
+//				compare_and_dump_buffers(t->srcbuf, t->dstbuf, BOUNCE_BUF_SIZE);
 			}
-			if (!memcmp(t->srcbuf, t->dstbuf, t->buffsize)) {
+			if (!memcmp(t->srcbuf, t->dstbuf, BOUNCE_BUF_SIZE)) {
 				return PASS;
 			}
 		}
@@ -205,21 +205,19 @@ int test_read_allowed_area(struct test_context *t) {
 }
 
 int test_read_allowed_area_ppos_advance(struct test_context *t) {
-	char single_page_buf_src[SINGLE_PAGE_BUF_SIZE];
-	char single_page_buf_dst[SINGLE_PAGE_BUF_SIZE];
 
-	fill_random_chars(single_page_buf_src, SINGLE_PAGE_BUF_SIZE);
-	memset(single_page_buf_dst, 0, SINGLE_PAGE_BUF_SIZE);
+	fill_random_chars(t->srcbuf, BOUNCE_BUF_SIZE);
+	memset(t->dstbuf, 0, BOUNCE_BUF_SIZE);
 	if (t->verbose)
-		print_hex(single_page_buf_src, 32);
-	if (t->tst_addr = virt_to_phys(single_page_buf_src)) {
+		print_hex(t->srcbuf, 32);
+	if (t->tst_addr = virt_to_phys(t->srcbuf)) {
 		deb_printf("test_read_allowed_area_ppos_advance t->tst_addr=%llx\n", t->tst_addr);
-		if ((try_read_dev_mem(t->fd, t->tst_addr, SINGLE_PAGE_BUF_SIZE / 2, single_page_buf_dst) >= 0) &&
-		    (try_read_inplace(t->fd, SINGLE_PAGE_BUF_SIZE / 2, single_page_buf_dst) >= 0)){
+		if ((try_read_dev_mem(t->fd, t->tst_addr, BOUNCE_BUF_SIZE / 2, t->dstbuf) >= 0) &&
+		    (try_read_inplace(t->fd, BOUNCE_BUF_SIZE / 2, t->dstbuf) >= 0)){
 			if (t->verbose)
-				print_hex(single_page_buf_dst, 32);
+				print_hex(t->dstbuf, 32);
 
-			if (!memcmp(single_page_buf_src + SINGLE_PAGE_BUF_SIZE / 2, single_page_buf_dst, SINGLE_PAGE_BUF_SIZE / 2)) {
+			if (!memcmp(t->srcbuf + BOUNCE_BUF_SIZE / 2, t->dstbuf, BOUNCE_BUF_SIZE / 2)) {
 				return PASS;
 			}
 		}
@@ -228,9 +226,9 @@ int test_read_allowed_area_ppos_advance(struct test_context *t) {
 }
 
 int test_write_outside_area(struct test_context *t) {
-	fill_random_chars(t->srcbuf, t->buffsize);
+	fill_random_chars(t->srcbuf, BOUNCE_BUF_SIZE);
 	t->tst_addr = pick_outside_address(t->map);
-	if (try_write_dev_mem(t->fd, t->tst_addr, SMALL_BYTES_CNT, t->srcbuf) < 0) {
+	if (try_write_dev_mem(t->fd, t->tst_addr, BOUNCE_BUF_SIZE, t->srcbuf) < 0) {
 		return PASS;
 	}
 	return FAIL;
