@@ -5,7 +5,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define MAX_PAGE_SIZE 65536
+#define FRAG_TOTAL_PAGES   256    // total pages used to fragment allocator
+#define FRAG_BLOCK_PAGES   4      // small blocks per fragment step
+//#define MAX_PAGE_SIZE 65536
 #define F_ARCH_ALL			1
 #define F_ARCH_X86			(1 << 1)
 #define F_ARCH_ARM			(1 << 2)
@@ -55,13 +57,14 @@ typedef enum {
 
 struct test_context {
 	struct ram_map 	*map;
-	char 		srcbuf[MAX_PAGE_SIZE*2];
-	char 		dstbuf[MAX_PAGE_SIZE*2];
+	char 		*srcbuf;
+	char 		*dstbuf;
 	uintptr_t	tst_addr;
 	int		fd;
 	bool		verbose;
 	bool		strict_devmem_state;
 	bool		devmem_init_state;
+	size_t		buffsize;
 };
 
 struct char_mem_test {
@@ -80,6 +83,9 @@ bool is_zero(const void *, size_t);
 void print_hex(const void *, size_t);
 int copy_fragmented_physical_memory(struct test_context *);
 void compare_and_dump_buffers(const char *, const char *, size_t);
+void *find_contiguous_pair(void *, size_t);
+void dealloc(void *, size_t);
+void *find_contiguous_zone(size_t size, int max_iterations);
 
 test_consistency test_needed(struct test_context *, struct char_mem_test *);
 #endif

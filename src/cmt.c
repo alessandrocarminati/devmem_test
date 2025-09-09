@@ -27,6 +27,9 @@ struct char_mem_test test_set[] = {
 	{"test_read_allowed_area_ppos_advance", &test_read_allowed_area_ppos_advance, "test read allowed area increments ppos",	F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
 	{"test_read_restricted_area", &test_read_restricted_area, "test read restricted returns zeros",				F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ|F_MISC_STRICT_DEVMEM_REQ},
 	{"test_write_outside_area", &test_write_outside_area, "test write outside ",						F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ|F_MISC_WARN_ON_FAILURE},
+	{"test_seek_seek_set", &test_seek_seek_set, "test seek funcction SEEK_SET ",						F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_seek_seek_cur", &test_seek_seek_cur, "test seek function SEEK_CUR",						F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
+	{"test_seek_seek_other", &test_seek_seek_other, "test seek function SEEK_END other ",					F_ARCH_ALL|F_BITS_ALL|F_MISC_INIT_REQ},
 };
 
 int main(int argc, char *argv[]) {
@@ -39,6 +42,13 @@ int main(int argc, char *argv[]) {
 	struct char_mem_test *current;
 
 	t = (struct test_context *) calloc(1, sizeof(struct test_context));
+	t->srcbuf = find_contiguous_zone(4096*16, 4096);
+	t->dstbuf = find_contiguous_zone(4096*16, 4096);
+	if (!t->srcbuf || !t->dstbuf) {
+		printf("can't allocate buffers!\n");
+		exit(-1);
+	}
+	t->buffsize = 4096*16;
 	if (!t) {
 		perror("alloc\n");
 		exit(-1);

@@ -198,3 +198,22 @@ uint64_t pick_outside_address(const struct ram_map *map) {
 
         return max_addr + 0x1000;
 }
+
+uint64_t pick_valid_ram_address(const struct ram_map *map) {
+	uint64_t best_up, best_low, best_size = 0;
+
+	if (!map || !map->regions || map->count == 0)
+		return 0;
+
+	for (size_t i = 0; i < map->count; i++) {
+		if (!strcmp("System RAM", map->regions[i].name)) {
+			if (best_size < map->regions[i].end - map->regions[i].start) {
+				best_up = map->regions[i].start;
+				best_low = map->regions[i].end;
+				best_size = map->regions[i].end - map->regions[i].start;
+			}
+		}
+	}
+	return best_low + (best_size / 2);
+}
+

@@ -2,11 +2,13 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sched.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -14,6 +16,9 @@
 #include "debug.h"
 
 
+static inline uint64_t get_page_size(void) {
+	return (uint64_t)sysconf(_SC_PAGE_SIZE);
+}
 /*
 	copies test context srcbuf to dstbuf by following srcbuf in physical memory
 	and read its contents in dstbuf
@@ -29,9 +34,9 @@ int copy_fragmented_physical_memory(struct test_context *t) {
 
 	current_virt_addr = (uintptr_t)t->srcbuf;
 	current_dest_addr = (uintptr_t)t->dstbuf;
-	bytes_to_copy = sizeof(t->srcbuf);
+	bytes_to_copy = t->buffsize;
 
-	page_size = (uint64_t)sysconf(_SC_PAGE_SIZE);
+	page_size = get_page_size();
 	phys_addr = 0;
 	contiguos_detect = false;
 
@@ -53,12 +58,12 @@ int copy_fragmented_physical_memory(struct test_context *t) {
 		}
 
 		if (lseek(t->fd, phys_addr, SEEK_SET) == (off_t)-1) {
-			perror("Failed to lseek in /dev/mem");
+			deb_printf("Failed to lseek in /dev/mem");
 			return -1;
 		}
 
 		if (read(t->fd, (void *)current_dest_addr, chunk_size) != chunk_size) {
-			perror("Failed to read from /dev/mem");
+			deb_printf("Failed to read from /dev/mem");
 			return -1;
 		}
 
@@ -66,7 +71,8 @@ int copy_fragmented_physical_memory(struct test_context *t) {
 		current_dest_addr += chunk_size;
 		bytes_to_copy -= chunk_size;
 	}
-	return contiguos_detect?sizeof(t->srcbuf):0;
+	deb_printf("copy_fragmented_physical_memory ended -> contiguos_detect = %d\n", contiguos_detect);
+	return contiguos_detect?t->buffsize:0;
 }
 
 static void hexdump(const void *data, size_t size, size_t offset) {
@@ -130,7 +136,7 @@ uint64_t virt_to_phys(void *virt_addr) {
 
 	deb_printf("virt_to_phys(%p)\n", virt_addr);
 
-	page_size = (uint64_t)sysconf(_SC_PAGE_SIZE);
+	page_size = get_page_size();
 	virt_pfn = virt / page_size;
 	deb_printf("page_size=%d, virt_pfn=%lu\n", page_size, virt_pfn);
 
@@ -432,3 +438,111 @@ test_consistency test_needed(struct test_context *t, struct char_mem_test *curre
 	return TEST_ALLOWED;
 }
 
+void *find_contiguous_pair(void *virt_addr, size_t size) {
+	size_t pgsize = get_page_size();
+	size_t npages = size / pgsize;
+	unsigned char *base = (unsigned char *)virt_addr;
+
+	if (npages < 2) return NULL;
+
+	uint64_t prev_phys = virt_to_phys(base);
+	if (!prev_phys) return NULL;
+//	printf(">>>> %llx\n", virt_addr);
+	for (size_t i = 1; i < npages; ++i) {
+		uint64_t phys = virt_to_phys(base + i * pgsize);
+		if (!phys) return NULL;
+//		printf("==>>>> %llx\n", phys);
+		if (phys == prev_phys + pgsize) {
+			// Found physically contiguous pair
+			return base + (i - 1) * pgsize;
+		}
+		prev_phys = phys;
+	}
+	return NULL;
+}
+
+static void *allocator(size_t size) {
+	size_t pgsize = get_page_size();
+	void *p = mmap(NULL, size, PROT_READ | PROT_WRITE,
+				   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (p == MAP_FAILED) {
+		perror("mmap");
+		return NULL;
+	}
+
+	// Touch each page to force physical allocation
+	volatile unsigned char *c = (volatile unsigned char *)p;
+	for (size_t off = 0; off < size; off += pgsize) {
+		c[off] = 1;
+	}
+
+	if (madvise(p, size, MADV_WILLNEED) != 0) {
+		perror("madvise");
+	}
+	if (msync(p, size, MS_SYNC) != 0) {
+		perror("msync");
+	}
+	sched_yield(); 
+	return p;
+}
+
+static void fragment_allocator(size_t total_pages, size_t block_pages) {
+	size_t pgsize = get_page_size();
+	size_t blocks = (total_pages + block_pages - 1) / block_pages;
+	void **list = calloc(blocks, sizeof(void *));
+	if (!list) return;
+
+	for (size_t i = 0; i < blocks; ++i) {
+		list[i] = mmap(NULL, block_pages * pgsize, PROT_READ | PROT_WRITE,
+					   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		if (list[i] == MAP_FAILED) {
+			list[i] = NULL;
+			continue;
+		}
+		unsigned char *c = (unsigned char *)list[i];
+		for (size_t off = 0; off < block_pages * pgsize; off += pgsize)
+			c[off] = (unsigned char)(c[off] + 1);
+	}
+
+	// Free in pseudo-random order
+	for (size_t i = 0; i < blocks; ++i) {
+		size_t idx = (i * 997) % blocks;
+		if (list[idx]) munmap(list[idx], block_pages * pgsize);
+	}
+
+	free(list);
+}
+
+void dealloc(void *p, size_t size) {
+	// Perturb allocator before freeing
+	fragment_allocator(FRAG_TOTAL_PAGES, FRAG_BLOCK_PAGES);
+
+	if (munmap(p, size) != 0) {
+		perror("munmap");
+	}
+	fragment_allocator(FRAG_TOTAL_PAGES/2, FRAG_BLOCK_PAGES);
+}
+
+void *find_contiguous_zone(size_t size, int max_iterations) {
+	for (int attempt = 0; attempt < max_iterations; ++attempt) {
+		void *zone = allocator(size);
+		if (!zone) {
+			fprintf(stderr, "Allocator failed on iteration %d\n", attempt + 1);
+			return NULL;
+		}
+
+		void *found = find_contiguous_pair(zone, size);
+		if (found) {
+			printf("Found contiguous pair on iteration %d at virtual address %p\n",
+				   attempt + 1, found);
+			return zone;  // Keep zone mapped and return base pointer
+		}
+
+		// No contiguous pair found, perturb and free
+		dealloc(zone, size);
+	}
+
+	fprintf(stderr, "Failed to find contiguous pair after %d iterations.\n",
+			max_iterations);
+	return NULL;
+}
