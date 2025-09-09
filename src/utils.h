@@ -7,6 +7,7 @@
 
 #define FRAG_TOTAL_PAGES   256    // total pages used to fragment allocator
 #define FRAG_BLOCK_PAGES   4      // small blocks per fragment step
+#define FIXED_BUFFER_SIZE (4096 * 32)
 //#define MAX_PAGE_SIZE 65536
 #define F_ARCH_ALL			1
 #define F_ARCH_X86			(1 << 1)
@@ -55,16 +56,27 @@ typedef enum {
 	TEST_ALLOWED
 } test_consistency;
 
+
+struct contiguous_page {
+	void		*buffer;		// base of allocated buffer
+	size_t		size;			// always 128 KiB
+	void		*contig_vaddr[2];	// virtual addresses of the two physically contiguous pages
+	uint64_t	contig_phys[2];		// physical addresses (byte addresses)
+	size_t		cpagesize;		// since page size can change, bufsize can change accordingly
+};
+
 struct test_context {
-	struct ram_map 	*map;
-	char 		*srcbuf;
-	char 		*dstbuf;
-	uintptr_t	tst_addr;
-	int		fd;
-	bool		verbose;
-	bool		strict_devmem_state;
-	bool		devmem_init_state;
-	size_t		buffsize;
+	struct ram_map 		*map;
+//	char 			*srcbuf;
+//	char 			*dstbuf;
+	struct contiguous_page	*srcbuf;
+	struct contiguous_page	*dstbuf;
+	uintptr_t		tst_addr;
+	int			fd;
+	bool			verbose;
+	bool			strict_devmem_state;
+	bool			devmem_init_state;
+	size_t			buffsize;
 };
 
 struct char_mem_test {
@@ -86,6 +98,14 @@ void compare_and_dump_buffers(const char *, const char *, size_t);
 void *find_contiguous_pair(void *, size_t);
 void dealloc(void *, size_t);
 void *find_contiguous_zone(size_t size, int max_iterations);
+
+void write_cpage_buf(struct contiguous_page *, size_t, char);
+char read_cpage_buf(struct contiguous_page *, size_t);
+struct contiguous_page *find_zone_with_contiguous_pair(int);
+void free_cpage(struct contiguous_page *);
+int fill_random_chars_cpage(struct contiguous_page *, int);
+bool is_zero_cpage(struct contiguous_page *, size_t);
+void compare_and_dump_buffers_cpage(struct contiguous_page *, struct contiguous_page *, size_t);
 
 test_consistency test_needed(struct test_context *, struct char_mem_test *);
 #endif

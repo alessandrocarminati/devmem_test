@@ -546,3 +546,245 @@ void *find_contiguous_zone(size_t size, int max_iterations) {
 			max_iterations);
 	return NULL;
 }
+
+/*====================================================================================================================*/
+
+/* Read the PFN array for a buffer in one go */
+static int walk_pagemap(void *base, size_t size, uint64_t *pfns) {
+	size_t pg = get_page_size();
+	size_t npages = size / pg;
+
+	int fd = open("/proc/self/pagemap", O_RDONLY);
+	if (fd < 0) {
+		perror("open pagemap");
+		return -1;
+	}
+
+	for (size_t i = 0; i < npages; i++) {
+		uintptr_t vaddr = (uintptr_t)base + i * pg;
+		off_t offset = (vaddr / pg) * sizeof(uint64_t);
+
+		if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
+			perror("lseek pagemap");
+			close(fd);
+			return -1;
+		}
+
+		uint64_t entry;
+		if (read(fd, &entry, sizeof(entry)) != sizeof(entry)) {
+			perror("read pagemap");
+			close(fd);
+			return -1;
+		}
+
+		if (!(entry & (1ULL << 63))) {
+			pfns[i] = 0;  // Page not present
+		} else {
+			pfns[i] = entry & ((1ULL << 55) - 1);  // extract PFN
+		}
+	}
+
+	close(fd);
+	return 0;
+}
+
+/* Find a contiguous pair of physical pages anywhere in the buffer */
+static struct contiguous_page *find_contiguous_pair_cpage(void *buf, size_t size) {
+	size_t pg = get_page_size();
+	size_t npages = size / pg;
+	uint64_t pfns[npages];
+
+	if (walk_pagemap(buf, size, pfns) != 0)
+		return NULL;
+
+	for (size_t i = 0; i < npages; i++) {
+		if (pfns[i] == 0) continue;
+		for (size_t j = 0; j < npages; j++) {
+			if (i == j) continue;
+			if (pfns[j] == pfns[i] + 1) {
+				// Found physically contiguous pages
+				struct contiguous_page *c = malloc(sizeof(*c));
+				c->buffer = buf;
+				c->size = size;
+				c->cpagesize = pg * 2;
+				c->contig_vaddr[0] = (void *)((uintptr_t)buf + i * pg);
+				c->contig_vaddr[1] = (void *)((uintptr_t)buf + j * pg);
+				c->contig_phys[0] = pfns[i] * pg;
+				c->contig_phys[1] = pfns[j] * pg;
+				return c;
+			}
+		}
+	}
+	return NULL;
+}
+
+/* Main search loop */
+struct contiguous_page *find_zone_with_contiguous_pair(int max_iter) {
+	for (int i = 0; i < max_iter; i++) {
+		void *buf = allocator(FIXED_BUFFER_SIZE);
+		if (!buf)
+			return NULL;
+
+		struct contiguous_page *c = find_contiguous_pair_cpage(buf, FIXED_BUFFER_SIZE);
+		if (c) {
+			return c;  // Success!
+		}
+
+	dealloc(buf, FIXED_BUFFER_SIZE);
+	}
+	return NULL;
+}
+
+
+/**
+ * Write a single byte at the specified logical index
+ * into the physically contiguous two-page area.
+ */
+void write_cpage_buf(struct contiguous_page *buf, size_t index, char data) {
+	size_t pg = get_page_size();
+	if (!buf) return;
+
+	if (index < pg) {
+		// First page
+		((char *)buf->contig_vaddr[0])[index] = data;
+	} else if (index < 2 * pg) {
+		// Second page
+		((char *)buf->contig_vaddr[1])[index - pg] = data;
+	} else {
+		// Out of bounds
+		// Optionally handle error
+	}
+}
+
+/**
+ * Read a single byte from the specified logical index
+ * in the physically contiguous two-page area.
+ */
+char read_cpage_buf(struct contiguous_page *buf, size_t index) {
+	size_t pg = get_page_size();
+	if (!buf) return 0;
+
+	if (index < pg) {
+		// First page
+		return ((char *)buf->contig_vaddr[0])[index];
+	} else if (index < 2 * pg) {
+		// Second page
+		return ((char *)buf->contig_vaddr[1])[index - pg];
+	} else {
+		// Out of bounds
+		return 0;
+	}
+}
+
+void free_cpage(struct contiguous_page *c) {
+	if (!c) return;
+	dealloc(buf, FIXED_BUFFER_SIZE);
+	free(c);
+}
+
+int fill_random_chars_cpage(struct contiguous_page *c, int cnt) {
+	char * buf;
+
+	buf = malloc(c->cpagesize);
+	if (!buf) return -1;
+
+	int fd = open("/dev/urandom", O_RDONLY);
+	if (fd < 0) {
+		perror("open /dev/urandom");
+		return -1;
+	}
+
+	int bytes_read = 0;
+	while (bytes_read < cnt) {
+		ssize_t res = read(fd, buf + bytes_read, cnt - bytes_read);
+		if (res < 0) {
+			if (errno == EINTR)
+				continue;
+			perror("read /dev/urandom");
+			close(fd);
+			return -1;
+		}
+		bytes_read += res;
+	}
+	close(fd);
+	for (int i=0; i<cnt; i++)
+		write_cpage_buf(c, i, *(buf+i));
+
+	return 0;
+}
+
+bool is_zero_cpage(struct contiguous_page *c, size_t cnt) {
+	const char *byte_ptr = (const char *)p;
+	for (size_t i = 0; i < cnt; ++i) {
+		if (read_cpage_buf(c, i) != 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static int memcmp_cpage(struct contiguous_page *c1, struct contiguous_page *c2, size_t size) {
+	size_t i;
+	unsigned char val1, val2;
+
+	for (i = 0; i < size; ++i) {
+		val1 = (unsigned char)read_cpage_buf(c1, i);
+		val2 = (unsigned char)read_cpage_buf(c2, i);
+
+		if (val1 != val2) {
+			return val1 - val2;
+		}
+	}
+
+	return 0;
+}
+
+static void hexdump_cpage(struct contiguous_page *data, size_t size, size_t offset) {
+	size_t i, j;
+
+	for (i = 0; i < size; i += 16) {
+		printf("%08zx  ", offset + i);
+
+		for (j = 0; j < 16; j++) {
+			if (i + j < size) {
+				printf("%02x ", (unsigned char)read_cpage_buf(data,i + j));
+			} else {
+				printf("   ");
+			}
+		}
+		printf(" ");
+
+		for (j = 0; j < 16; j++) {
+			if (i + j < size) {
+				printf("%c", isprint((unsigned char)read_cpage_buf(data,i + j) ? (unsigned char)read_cpage_buf(data,i + j) : '.');
+			}
+		}
+		printf("\n");
+	}
+}
+
+void compare_and_dump_buffers_cpage(struct contiguous_page *c1, struct contiguous_page *c2, size_t size) {
+	if (c1 == NULL || c2 == NULL) {
+		fprintf(stderr, "Error: One or both buffers are NULL.\n");
+		return;
+	}
+
+	size_t i;
+	int found_difference = 0;
+
+	for (i = 0; i < size; i += 16) {
+		if (memcmp_cpage(c1 + i, c2 + i, 16) != 0) {
+			found_difference = 1;
+			printf("Difference found at offset 0x%zx (decimal %zu).\n", i, i);
+			printf("--- Buffer 1 ---\n");
+			hexdump_cpage(buf1 + i, 16, i);
+			printf("--- Buffer 2 ---\n");
+			hexdump_cpage(buf2 + i, 16, i);
+			printf("\n");
+		}
+	}
+
+	if (!found_difference) {
+		printf("Buffers are identical.\n");
+	}
+}

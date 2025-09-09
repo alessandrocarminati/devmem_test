@@ -42,13 +42,15 @@ int main(int argc, char *argv[]) {
 	struct char_mem_test *current;
 
 	t = (struct test_context *) calloc(1, sizeof(struct test_context));
-	t->srcbuf = find_contiguous_zone(4096*16, 4096);
-	t->dstbuf = find_contiguous_zone(4096*16, 4096);
+//	t->srcbuf = find_contiguous_zone(4096*16, 4096);
+//	t->dstbuf = find_contiguous_zone(4096*16, 4096);
+	t->srcbuf = find_zone_with_contiguous_pair(4096);
+	t->dstbuf = find_zone_with_contiguous_pair(4096);
 	if (!t->srcbuf || !t->dstbuf) {
 		printf("can't allocate buffers!\n");
 		exit(-1);
 	}
-	t->buffsize = 4096*16;
+	exit(1);
 	if (!t) {
 		perror("alloc\n");
 		exit(-1);
