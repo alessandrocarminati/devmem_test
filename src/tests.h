@@ -28,7 +28,7 @@ int test_write_outside_area(struct test_context *);
 int test_seek_seek_cur(struct test_context *);
 int test_seek_seek_set(struct test_context *);
 int test_seek_seek_other(struct test_context *);
-
+int test_open_devnum(struct test_context *);
 
 static inline bool is_64bit_arch(void) {
 	return sizeof(void*) == 8;
