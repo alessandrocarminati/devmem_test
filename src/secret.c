@@ -1,13 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0+
+/* devmem test secret.c
+ *
+ * Copyright (C) 2025 Red Hat, Inc. All Rights Reserved.
+ * Written by Alessandro Carminati (acarmina@redhat.com)
+ */
+
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 
-static int memfd_secret(unsigned int flags) {
+static int memfd_secret(unsigned int flags)
+{
 	return syscall(SYS_memfd_secret, flags);
 }
 
-void *secret_alloc(size_t size) {
+void *secret_alloc(size_t size)
+{
 	int fd = -1;
 	void *m;
 	void *result = NULL;
@@ -31,6 +40,7 @@ out:
 	return result;
 }
 
-void secret_free(void *p, size_t size) {
+void secret_free(void *p, size_t size)
+{
 	munmap(p, size);
 }

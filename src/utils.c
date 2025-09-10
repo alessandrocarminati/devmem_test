@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0+
+/* devmem test utils.c
+ *
+ * Copyright (C) 2025 Red Hat, Inc. All Rights Reserved.
+ * Written by Alessandro Carminati (acarmina@redhat.com)
+ */
+
 #define _FILE_OFFSET_BITS 64
 #include <ctype.h>
 #include <errno.h>
@@ -16,70 +23,19 @@
 #include "debug.h"
 
 
-static inline uint64_t get_page_size(void) {
+static inline uint64_t get_page_size(void)
+{
 	return (uint64_t)sysconf(_SC_PAGE_SIZE);
 }
 
-static void hexdump(const void *data, size_t size, size_t offset) {
-	const unsigned char *p = (const unsigned char *)data;
-	size_t i, j;
-
-	for (i = 0; i < size; i += 16) {
-		printf("%08zx  ", offset + i);
-
-		for (j = 0; j < 16; j++) {
-			if (i + j < size) {
-				printf("%02x ", p[i + j]);
-			} else {
-				printf("   ");
-			}
-		}
-		printf(" ");
-
-		for (j = 0; j < 16; j++) {
-			if (i + j < size) {
-				printf("%c", isprint(p[i + j]) ? p[i + j] : '.');
-			}
-		}
-		printf("\n");
-	}
-}
-
-void compare_and_dump_buffers(const char *buf1, const char *buf2, size_t size) {
-	if (buf1 == NULL || buf2 == NULL) {
-		fprintf(stderr, "Error: One or both buffers are NULL.\n");
-		return;
-	}
-
-	size_t i;
-	int found_difference = 0;
-
-	for (i = 0; i < size; i += 16) {
-		if (memcmp(buf1 + i, buf2 + i, 16) != 0) {
-			found_difference = 1;
-			printf("Difference found at offset 0x%zx (decimal %zu).\n", i, i);
-			printf("--- Buffer 1 ---\n");
-			hexdump(buf1 + i, 16, i);
-			printf("--- Buffer 2 ---\n");
-			hexdump(buf2 + i, 16, i);
-			printf("\n");
-		}
-	}
-
-	if (!found_difference) {
-		printf("Buffers are identical.\n");
-	}
-}
-
-uint64_t virt_to_phys(void *virt_addr) {
+uint64_t virt_to_phys(void *virt_addr)
+{
 	uint64_t virt_pfn, page_size, phys_addr, pfn;
 	uintptr_t virt = (uintptr_t)virt_addr;
 	ssize_t bytes_read;
-	uint64_t entry=0;
+	uint64_t entry = 0;
 	off_t offset;
 	int fd;
-
-	deb_printf("virt_to_phys(%p)\n", virt_addr);
 
 	page_size = get_page_size();
 	virt_pfn = virt / page_size;
@@ -87,7 +43,8 @@ uint64_t virt_to_phys(void *virt_addr) {
 
 	fd = open("/proc/self/pagemap", O_RDONLY);
 	if (fd < 0) {
-		deb_printf("Error opening /proc/self/pagemap: %s\n", strerror(errno));
+		deb_printf("Error opening /proc/self/pagemap: %s\n",
+		  strerror(errno));
 		return 0;
 	}
 
@@ -123,81 +80,83 @@ uint64_t virt_to_phys(void *virt_addr) {
 	return phys_addr;
 }
 
-
-int try_read_inplace(int fd, int scnt, void *sbuf) {
+int try_read_inplace(int fd, int scnt, void *sbuf)
+{
 	ssize_t r;
-
-	deb_printf("try_read_inplace(%d, %u, %p)\n", fd, scnt, sbuf);
 
 	r = read(fd, sbuf, scnt);
 	deb_printf("read(%d, %p, %d)=%d(%d)\n", fd, sbuf, scnt, r, -errno);
-	if (r < 0) {
+	if (r < 0)
 		return -errno;
-	}
+
 	return (int)r;
 }
 
-int try_read_dev_mem(int fd, uint64_t addr, int scnt, void *sbuf) {
+int try_read_dev_mem(int fd, uint64_t addr, int scnt, void *sbuf)
+{
 	int space;
 	ssize_t r;
 	void *buf;
 	int cnt;
 
-	deb_printf("try_read_dev_mem(%d, 0x%llx, %u, %p)\n", fd, addr, scnt, sbuf);
-	buf = sbuf?sbuf:&space;
-	cnt = sbuf?scnt:sizeof(space);
+	buf = sbuf ? sbuf : &space;
+	cnt = sbuf ? scnt : sizeof(space);
 	deb_printf("buf = %p, cnt = %d\n", buf, cnt);
-	if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1) {
+	if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1)
 		return -errno;
-	}
+
 	deb_printf("lseek(%d, %llx, SEEK_SET)=%d\n", fd, addr, -errno);
 
 	r = read(fd, buf, cnt);
 	deb_printf("read(%d, %p, %d)=%d(%d)\n", fd, buf, cnt, r, -errno);
-	if (r < 0) {
+	if (r < 0)
 		return -errno;
-	}
+
 	return (int)r;
 }
 
-int try_write_dev_mem(int fd, uint64_t addr, int scnt, void *sbuf) {
+int try_write_dev_mem(int fd, uint64_t addr, int scnt, void *sbuf)
+{
 	int space;
 	ssize_t r;
 	void *buf;
 	int cnt;
 
-	deb_printf("try_write_dev_mem(%d, 0x%llx, %u, %p)\n", fd, addr, scnt, sbuf);
-	buf = sbuf?sbuf:&space;
-	cnt = sbuf?scnt:sizeof(space);
+	buf = sbuf ? sbuf : &space;
+	cnt = sbuf ? scnt : sizeof(space);
 	deb_printf("buf = %p, cnt = %d\n", buf, cnt);
-	if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1) {
+	if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1)
 		return -errno;
-	}
+
 	deb_printf("lseek(%d, %llx, SEEK_SET)=%d\n", fd, addr, -errno);
 
 	r = write(fd, buf, cnt);
 	deb_printf("write(%d, %p, %d)=%d(%d)\n", fd, buf, cnt, r, -errno);
-	if (r < 0) {
+	if (r < 0)
 		return -errno;
-	}
+
 	return (int)r;
 }
 
-int fill_random_chars(char *buf, int cnt) {
+int fill_random_chars(char *buf, int cnt)
+{
+	int bytes_read, fd;
+	ssize_t res;
+
 	if (!buf || cnt <= 0) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	int fd = open("/dev/urandom", O_RDONLY);
+	fd = open("/dev/urandom", O_RDONLY);
 	if (fd < 0) {
 		perror("open /dev/urandom");
 		return -1;
 	}
 
-	int bytes_read = 0;
+	bytes_read = 0;
 	while (bytes_read < cnt) {
-		ssize_t res = read(fd, buf + bytes_read, cnt - bytes_read);
+		res = read(fd, buf + bytes_read, cnt - bytes_read);
 		if (res < 0) {
 			if (errno == EINTR)
 				continue;
@@ -212,41 +171,44 @@ int fill_random_chars(char *buf, int cnt) {
 	return 0;
 }
 
-bool is_zero(const void *p, size_t cnt) {
+bool is_zero(const void *p, size_t cnt)
+{
 	const char *byte_ptr = (const char *)p;
+
 	for (size_t i = 0; i < cnt; ++i) {
-		if (byte_ptr[i] != 0) {
+		if (byte_ptr[i] != 0)
 			return false;
-		}
 	}
 	return true;
 }
 
-void print_hex(const void *p, size_t cnt) {
+void print_hex(const void *p, size_t cnt)
+{
 	const unsigned char *bytes = (const unsigned char *)p;
+	int remainder;
 	size_t i;
 
 	for (i = 0; i < cnt; i++) {
 		if (i % 16 == 0) {
-			if (i > 0) {
+			if (i > 0)
 				printf("\n");
-			}
+
 			printf("%08lX: ", (unsigned long)(bytes + i));
 		}
 		printf("%02X ", bytes[i]);
 	}
 
-	int remainder = cnt % 16;
+	remainder = cnt % 16;
 	if (remainder != 0) {
-		for (int j = 0; j < 16 - remainder; j++) {
+		for (int j = 0; j < 16 - remainder; j++)
 			printf("   ");
-		}
 	}
 
 	printf("\n");
 }
 
-static bool machine_is_compatible(unsigned int flags) {
+static bool machine_is_compatible(unsigned int flags)
+{
 	unsigned int current_arch_flag = 0;
 	unsigned int current_bits_flag = 0;
 
@@ -266,11 +228,10 @@ static bool machine_is_compatible(unsigned int flags) {
 	current_arch_flag = 0;
 #endif
 
-	if (sizeof(void*) == 8) {
+	if (sizeof(void *) == 8)
 		current_bits_flag = F_BITS_B64;
-	} else {
+	else
 		current_bits_flag = F_BITS_B32;
-	}
 
 	bool arch_matches = (flags & F_ARCH_ALL) || (flags & current_arch_flag);
 
@@ -279,76 +240,81 @@ static bool machine_is_compatible(unsigned int flags) {
 	return arch_matches && bits_matches;
 }
 
-void print_flags(uint32_t flags) {
+static void print_flags(uint32_t flags)
+{
 	printf("Flags: 0x%08X ->", flags);
 
 	// Architecture flags
 	printf(" Architecture: ");
-	if (flags & F_ARCH_ALL) {
+	if (flags & F_ARCH_ALL)
 		printf("ALL ");
-	}
-	if (flags & F_ARCH_X86) {
+
+	if (flags & F_ARCH_X86)
 		printf("X86 ");
-	}
-	if (flags & F_ARCH_ARM) {
+
+	if (flags & F_ARCH_ARM)
 		printf("ARM ");
-	}
-	if (flags & F_ARCH_PPC) {
+
+	if (flags & F_ARCH_PPC)
 		printf("PPC ");
-	}
-	if (flags & F_ARCH_MIPS) {
+
+	if (flags & F_ARCH_MIPS)
 		printf("MIPS ");
-	}
-	if (flags & F_ARCH_S390) {
+
+	if (flags & F_ARCH_S390)
 		printf("S390 ");
-	}
-	if (flags & F_ARCH_RISCV) {
+
+	if (flags & F_ARCH_RISCV)
 		printf("RISC-V ");
-	}
 
 	// Bitness flags
 	printf(" Bitness: ");
-	if (flags & F_BITS_ALL) {
+	if (flags & F_BITS_ALL)
 		printf("ALL ");
-	}
-	if (flags & F_BITS_B64) {
+
+	if (flags & F_BITS_B64)
 		printf("64-bit ");
-	}
-	if (flags & F_BITS_B32) {
+
+	if (flags & F_BITS_B32)
 		printf("32-bit ");
-	}
 
 	// Miscellaneous flags
 	printf(" Miscellaneous:");
-	if (flags & F_MISC_FATAL) {
+	if (flags & F_MISC_FATAL)
 		printf("	- F_MISC_FATAL: true");
-	}
-	if (flags & F_MISC_STRICT_DEVMEM_REQ) {
+
+	if (flags & F_MISC_STRICT_DEVMEM_REQ)
 		printf("	- F_MISC_STRICT_DEVMEM_REQ: true");
-	}
-	if (flags & F_MISC_STRICT_DEVMEM_PRV) {
+
+	if (flags & F_MISC_STRICT_DEVMEM_PRV)
 		printf("	- F_MISC_STRICT_DEVMEM_PRV: true");
-	}
-	if (flags & F_MISC_INIT_PRV) {
+
+	if (flags & F_MISC_INIT_PRV)
 		printf("	- F_MISC_INIT_PRV: true");
-	}
-	if (flags & F_MISC_INIT_REQ) {
+
+	if (flags & F_MISC_INIT_REQ)
 		printf("	- F_MISC_INIT_REQ: true");
-	}
+
 	printf("\n");
 }
 
-void print_context(struct test_context *t){
+static void print_context(struct test_context *t)
+{
 	char *c;
-	c="NO";
-	if (t->devmem_init_state) c="yes";
+
+	c = "NO";
+	if (t->devmem_init_state)
+		c = "yes";
 	printf("system state: init=%s, ", c);
-	c="NO";
-	if (t->strict_devmem_state) c="yes";
+	c = "NO";
+	if (t->strict_devmem_state)
+		c = "yes";
 	printf("strict_devmem=%s\n", c);
 }
 
-test_consistency test_needed(struct test_context *t, struct char_mem_test *current){
+int test_needed(struct test_context *t,
+			     struct char_mem_test *current)
+{
 	if (t->verbose) {
 		print_context(t);
 		print_flags(current->flags);
@@ -356,15 +322,15 @@ test_consistency test_needed(struct test_context *t, struct char_mem_test *curre
 
 	if (!(t->devmem_init_state) && !(current->flags & F_MISC_INIT_PRV)) {
 		deb_printf("Not initialized and test does not provide initialization\n");
-		return TEST_DENIED;	// Not initialized and test does not provide initialization
+		return TEST_DENIED;// Not initialized and not provide init
 	}
-	if ((t->devmem_init_state) && (current->flags & F_MISC_INIT_PRV)){
+	if ((t->devmem_init_state) && (current->flags & F_MISC_INIT_PRV)) {
 		deb_printf("can not initialize again\n");
 		return TEST_INCOHERENT;	// can not initialize again
 	}
 	if (!(t->devmem_init_state) && (current->flags & F_MISC_INIT_PRV)) {
 		deb_printf("initializing: test allowed!\n");
-		return TEST_ALLOWED; 	// initializing: test allowed!
+		return TEST_ALLOWED;	// initializing: test allowed!
 	}
 	if (!(t->devmem_init_state)) {
 		deb_printf("not initialized, can not proceed\n");
@@ -374,22 +340,25 @@ test_consistency test_needed(struct test_context *t, struct char_mem_test *curre
 		deb_printf("not for this architecture\n");
 		return TEST_DENIED;	// not for this architecture
 	}
-	if (((t->strict_devmem_state) || (current->flags & F_MISC_STRICT_DEVMEM_REQ)) &&
-	    !((t->strict_devmem_state) && (current->flags & F_MISC_STRICT_DEVMEM_REQ))) {
+	if (((t->strict_devmem_state) || (current->flags &
+	    F_MISC_STRICT_DEVMEM_REQ)) && !((t->strict_devmem_state) &&
+	    (current->flags & F_MISC_STRICT_DEVMEM_REQ))) {
 		deb_printf("strict_devmem requirement and offering do not meet\n");
-		return TEST_DENIED;	// strict_devmem requirement and offering do not meet
+		return TEST_DENIED;// strict_devmem requirement
 	}
 	deb_printf("test allowed!\n");
 	return TEST_ALLOWED;
 }
 
-void *malloc_pb(size_t size) {
+void *malloc_pb(size_t size)
+{
 	if (size == 0 || size > getpagesize()) {
-		fprintf(stderr, "malloc_pb: size must be greater than 0 and less than or equal to one page.\n");
+		fprintf(stderr, "size must be greater than 0 and less than or equal to one page.\n");
 		return NULL;
 	}
 
-	void *ptr = mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	void *ptr = mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE,
+	    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	if (ptr == MAP_FAILED) {
 		perror("mmap failed");
@@ -399,12 +368,12 @@ void *malloc_pb(size_t size) {
 	return ptr;
 }
 
-void free_pb(void *ptr) {
-	if (ptr == NULL) {
+void free_pb(void *ptr)
+{
+	if (ptr == NULL)
 		return;
-	}
 
-	if (munmap(ptr, getpagesize()) == -1) {
+	if (munmap(ptr, getpagesize()) == -1)
 		perror("munmap failed");
-	}
+
 }
